@@ -63,6 +63,7 @@ def ftriplot(
     plabels=[0, 0, 0, 0],
     extend="both",
     data_on_elem=0,
+	blat=45,
 ):
     if cmap == []:
         cmap = plt.cm.jet
@@ -115,7 +116,7 @@ def ftriplot(
         k = [i for (i, val) in enumerate(d) if not np.isnan(val)]
         elem2 = elem2[k, :]
         print("ftriplot, number of dummy points:", len(d) - len(k))
-        map = Basemap(projection="nplaea", boundinglat=45, lon_0=0, resolution="l")
+        map = Basemap(projection="nplaea", boundinglat=blat, lon_0=0, resolution="l")
         x, y = map(mesh.x2, mesh.y2)
         map.drawcoastlines()
         map.drawparallels(np.arange(-80.0, 81.0, 20.0), labels=plabels)
@@ -138,7 +139,8 @@ def ftriplot(
         k = [i for (i, val) in enumerate(d) if not np.isnan(val)]
         elem2 = elem2[k, :]
         print("ftriplot, number of dummy points:", len(d) - len(k))
-        map = Basemap(projection="splaea", boundinglat=-20, lon_0=180, resolution="l")
+        #map = Basemap(projection="splaea", boundinglat=-20, lon_0=180, resolution="l")
+        map = Basemap(projection='spstere',boundinglat=blat,lon_0=0,resolution='l')
         x, y = map(mesh.x2, mesh.y2)
         map.drawcoastlines()
         map.drawparallels(np.arange(-80.0, 81.0, 20.0), labels=plabels)
@@ -150,7 +152,8 @@ def ftriplot(
         data2[data2 <= contours.min()] = contours.min() + eps
         data2[data2 >= contours.max()] = contours.max() - eps
         im = plt.tricontourf(
-            x, y, elem2, data2, levels=contours, cmap=cmap, extend=extend
+            #x, y, elem2, data2, levels=contours, cmap=cmap, extend=extend
+            x, y, data2, levels=contours, cmap=cmap, extend=extend
         )
         if do_cbar:
             cbar = map.colorbar(im, "bottom", size="5%", pad="2%")

@@ -553,3 +553,79 @@ def tonodes3d(component, mesh):
         )
         out_data[:, level] = onnodes
     return out_data
+
+def myfesom2regular(data, mesh, lons, lats, distances=None, \
+                  inds=None, how='nn', k=10, radius_of_influence=100000, n_jobs = 2 ):
+    '''
+    Interpolates data from FESOM mesh to target (usually regular) mesh.
+
+    Parameters
+    ----------
+    data : array
+        1d array that represents FESOM data at one 
+    mesh : fesom_mesh object
+        pyfesom mesh representation
+    lons/lats : array
+        2d arrays with target grid values.
+    distances : array of floats, optional
+        The distances to the nearest neighbors.
+    inds : ndarray of ints, optional
+        The locations of the neighbors in data.
+    how : str
+       Interpolation method. Options are 'nn' (nearest neighbor) and 'idist' (inverce distance)
+    k : int
+        k-th nearest neighbors to use. Only used when how==idist
+    radius_of_influence : int
+        Cut off distance in meters.
+    n_jobs : int, optional
+        Number of jobs to schedule for parallel processing. If -1 is given
+        all processors are used. Default: 1.
+    
+    Returns
+    -------
+    data_interpolated : 2d array
+        array with data interpolated to the target grid.
+    '''
+    which='node'
+    try:
+        mesh.x2
+    except AttributeError:
+        if data.shape[0]==mesh.n2dea: which='elem'
+    else:
+        if data.shape[0]==mesh.e2d: which='elem'
+    
+    #print distances
+    if (distances is None) or (inds is None):
+        
+        if how=='nn':
+            distances, inds = create_indexes_and_distances(mesh, lons, lats,\
+                                                           k=1, n_jobs=n_jobs)
+        elif how=='idist':
+            distances, inds = create_indexes_and_distances(mesh, lons, lats,\
+                                                           k=k, n_jobs=n_jobs)
+
+    if distances.ndim == 1:
+        #distances_ma = np.ma.masked_greater(distances, radius_of_influence)
+        data_interpolated = data[inds]
+
+        data_interpolated[distances>=radius_of_influence] = np.nan
+        
+        data_interpolated = data_interpolated.reshape(lons.shape)
+        data_interpolated = np.ma.masked_invalid(data_interpolated)
+        data_interpolated = np.ma.filled(data_interpolated,np.nan)
+    else:
+        distances_ma = np.ma.masked_greater(distances, radius_of_influence)
+        #distances_ma = np.ma.masked_greater(distances, np.nan)
+        
+        w = 1.0 / distances_ma**2
+        data_interpolated = np.ma.sum(w * data[inds], axis=1) / np.ma.sum(w, axis=1)
+        data_interpolated.shape = lons.shape
+        data_interpolated = np.ma.masked_invalid(data_interpolated)
+        data_interpolated = np.ma.filled(data_interpolated,np.nan)
+        
+        #data_interpolated[distances[:,1]>=radius_of_influence] = np.nan
+        #data_interpolated[np.where(distances.min(axis=1)>=radius_of_influence)[0]] = np.nan
+    
+    return data_interpolated
+
+

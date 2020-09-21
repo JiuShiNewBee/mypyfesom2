@@ -9,6 +9,8 @@
 # Modifications:
 #
 ################################################################################
+import json
+import pkg_resources
 
 import numpy as np
 import math as mt
@@ -408,3 +410,115 @@ def set_standard_attrs(da):
     da.coords['time'].encoding['units'] = "days since '1900-01-01'"
 
     return da
+
+def mask_from_file(filename, name, mesh):
+    """Create mask from geojson file
+    Parameters:
+    ----------=
+        filename: str
+            path to the geojson file.
+            File should have several features
+        name: str
+            name of the feature, that will be our mask
+        mesh: mesh object
+            pyfesom2 mesh object
+    Returns:
+    --------
+        mask: numpy array
+            boolean vector of the shape of 2D data.
+    """
+    with open(filename) as f:
+        features = json.load(f)["features"]
+    for feature in features:
+        if feature["properties"]["name"] == name:
+            geom = shapely.geometry.shape(feature["geometry"])
+            mask = shapely.vectorized.contains(geom, mesh.x2, mesh.y2)
+    return mask
+
+
+def get_mask(mesh, region):
+    """Return mask.
+    Parameters:
+    -----------
+    mesh: mesh object
+        pyfesom2 mesh object
+    name: str
+        name of the region.
+        Available regions:
+            Ocean Basins:
+                "Atlantic_Basin"
+                "Pacific_Basin"
+                "Indian_Basin"
+                "Arctic_Basin"
+                "Southern_Ocean_Basin"
+                "Mediterranean_Basin"
+                "Global Ocean"
+                "Global Ocean 65N to 65S"
+                "Global Ocean 15S to 15N"
+            MOC Basins:
+                "Atlantic_MOC"
+                "IndoPacific_MOC"
+                "Pacific_MOC"
+                "Indian_MOC"
+            Nino Regions:
+                "Nino 3.4"
+                "Nino 3"
+                "Nino 4"
+            Arctic Ocean regions:
+                "Amerasian basin"
+                "Eurasian basin"
+    Returns:
+    --------
+        mask: numpy array
+            boolean or integer (for AO regions) vector of the shape of 2D data.
+    """
+
+    MOCBasins = ["Atlantic_MOC", "IndoPacific_MOC", "Pacific_MOC", "Indian_MOC"]
+    NinoRegions = ["Nino 3.4", "Nino 3", "Nino 4"]
+    oceanBasins = [
+        "Atlantic_Basin",
+        "Pacific_Basin",
+        "Indian_Basin",
+        "Arctic_Basin",
+        "Southern_Ocean_Basin",
+        "Mediterranean_Basin",
+        "Global Ocean",
+        "Global Ocean 65N to 65S",
+        "Global Ocean 15S to 15N",
+    ]
+
+    if region == "Amerasian basin":
+        ind_AB1 = np.where((mesh.x2 >= -100) & (mesh.x2 < -80) & (mesh.y2 >= 80))
+        ind_AB2 = np.where((mesh.x2 >= -180) & (mesh.x2 < -100) & (mesh.y2 > 66))
+        ind_AB3 = np.where((mesh.x2 < 180) & (mesh.x2 > 140) & (mesh.y2 > 66))
+
+        mask = np.hstack((ind_AB1[0], ind_AB2[0], ind_AB3[0]))
+
+    elif region == "Eurasian basin":
+        ind_EB1 = np.where((mesh.x2 > -80) & (mesh.x2 < 100) & (mesh.y2 > 80))
+        ind_EB2 = np.where((mesh.x2 > 100) & (mesh.x2 < 140) & (mesh.y2 > 66))
+
+        mask = np.hstack((ind_EB1[0], ind_EB2[0]))
+
+    elif region in MOCBasins:
+        filename = pkg_resources.resource_filename(
+            __name__, "geojson/MOCBasins.geojson"
+        )
+        mask = mask_from_file(filename, region, mesh)
+
+    elif region in NinoRegions:
+        filename = pkg_resources.resource_filename(
+            __name__, "geojson/NinoRegions.geojson"
+        )
+        mask = mask_from_file(filename, region, mesh)
+
+    elif region in oceanBasins:
+        filename = pkg_resources.resource_filename(
+            __name__, "geojson/oceanBasins.geojson"
+        )
+        mask = mask_from_file(filename, region, mesh)
+
+    else:
+        raise ValueError(f"Name {region} is not in the get_mask function.")
+
+    return mask
